@@ -5,13 +5,15 @@ import { execFile } from "node:child_process";
 
 // Log to terminal:
 // ctx.ui.notify(`Hello ${args || "world"}!`, "info");
+// Event flow is nicely available here; https://pi.dev/docs/latest/extensions#lifecycle-overview
+
 
 // Ugh, this probably goes through dbus or something, which currently isn't exposed to my sandbox.
 function dispatch_notify(message: string) {
   // -u low, normal, critical,
-  // -i icon, could be nice to use a pi icon, icon needs to be the path on the HOST.
-
   let args = ["-t", "5000"];
+
+  // Icon needs to be an absolute path on the host... so lets do this env var thing to obtain that path.
   let icon_file = process.env.HOST_PI_IW_EXTENSIONS_DIR || null;
   if (icon_file !== null) {
     args.push("-i");
@@ -20,6 +22,24 @@ function dispatch_notify(message: string) {
   args.push(message);
   execFile("notify-send", args , {  }, () => {});
 }
+
+
+function crackArgs(args: string): [string, string | null]  {
+  const trimmed = args.trim();
+  const firstSpaceIndex = trimmed.indexOf(" ");
+
+  if (firstSpaceIndex === -1) {
+    // Handle case where there is only one word and no spaces
+    const firstWord = trimmed; 
+    return [firstWord, null];
+  } else {
+    const firstWord = trimmed.slice(0, firstSpaceIndex);
+    const remainingText = trimmed.slice(firstSpaceIndex + 1).trim();
+    return [firstWord, remainingText];
+  }
+}
+
+
 export default function (pi: ExtensionAPI) {
   // Register a custom tool
   pi.registerTool({
@@ -38,11 +58,25 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
+
+
   // Register a command
   pi.registerCommand("notify", {
-    description: "Send a notification to test.",
+    description: "Send a notification to the user through a desktop notification.",
     handler: async (args, ctx) => {
-      dispatch_notify("test");
+      function printNotifyHelp() {
+        ctx.ui.notify(`/notify help\n/notify send <message>`, "info");
+      }
+      let [first_word, second_part] = crackArgs(args);
+      if (first_word == "help" && second_part === null) {
+        printNotifyHelp();
+        return;
+      } else if (first_word == "send") {
+        dispatch_notify(second_part || "");
+      } else { 
+        printNotifyHelp();
+        return;
+      } 
     },
   });
 
