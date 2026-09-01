@@ -14,5 +14,5 @@ Be sure to expose pi with:
 Icons need absolute paths, so when running this in a container lets do:
 
 ```
-    -e HOST_PI_IW_EXTENSIONS_DIR=/home/ivor/Documents/Code/bash/pi_dev/pi/agent/extensions \
+    -e HOST_PI_IW_EXTENSIONS_DIR=<THIS_REPO_ROOT> \
 ```
