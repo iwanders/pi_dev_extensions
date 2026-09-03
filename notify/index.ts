@@ -6,7 +6,11 @@ import { execFile } from "node:child_process";
 // Log to terminal:
 // ctx.ui.notify(`Hello ${args || "world"}!`, "info");
 // Event flow is nicely available here; https://pi.dev/docs/latest/extensions#lifecycle-overview
+// Can hot reload with /reload.
 
+
+/// This is the duration of an agent loop in seconds below which no notification is sent.
+const short_loop_skip_notify_value_s: number = 30.0;
 
 // Ugh, this probably goes through dbus or something, which currently isn't exposed to my sandbox.
 function dispatch_notify(message: string) {
@@ -80,7 +84,25 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
+  // Is this the proper way to make stateful extensions or is there a proper mechanism?
+  let start_time: number | null = null;
+  pi.on("agent_start", async () => {
+    start_time = Date.now();
+  });
+
   pi.on("agent_settled", async (_event, _ctx) => {
-      dispatch_notify("agent_settled");
+    if (start_time === null) {
+      // This is a bug? state machine not followed.
+      ctx.ui.notify("Agent settle event hit while start_time is null", "info");
+      return;
+    }
+    // Date.now is in milliseconds since 1970, so subtract it and make it seconds.
+    let elapsed_s = (Date.now() - start_time) / 1000.0;
+    start_time = null;
+    if (elapsed_s < short_loop_skip_notify_value_s) {
+      // No notification necessary.
+      return;
+    }
+    dispatch_notify(`agent_settled after ${elapsed_s.toFixed(2)} seconds.`);
   });
 }
